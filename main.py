@@ -42,6 +42,12 @@ class TokenLogger(Star):
             return 0
         return getattr(details, "cached_tokens", 0) or 0
 
+    def _get_reasoning_tokens(self, usage) -> int:
+        details = getattr(usage, "completion_tokens_details", None)
+        if details is None:
+            return 0
+        return getattr(details, "reasoning_tokens", 0) or 0
+
     def _get_finish_reason(self, completion) -> str:
         if not completion.choices:
             return "unknown"
@@ -49,7 +55,7 @@ class TokenLogger(Star):
 
     # ------------------------------------------------------------------
 
-    def _log_tokens(self, model: str, usage, cached: int, finish: str):
+    def _log_tokens(self, model: str, usage, cached: int, reasoning: int, finish: str):
         parts = [f"[TokenLogger] model = {model}"]
 
         if cached > 0:
@@ -57,7 +63,11 @@ class TokenLogger(Star):
         else:
             parts.append(f"input = {usage.prompt_tokens}")
 
-        parts.append(f"output = {usage.completion_tokens}")
+        if reasoning > 0:
+            parts.append(f"output = {usage.completion_tokens} (reasoning = {reasoning})")
+        else:
+            parts.append(f"output = {usage.completion_tokens}")
+
         parts.append(f"total = {usage.total_tokens}")
         parts.append(f"finish reason = {finish}")
 
@@ -96,9 +106,10 @@ class TokenLogger(Star):
         model = getattr(completion, "model", "unknown")
         finish = self._get_finish_reason(completion)
         cached = self._get_cached_tokens(usage)
+        reasoning = self._get_reasoning_tokens(usage)
 
         if self._enabled:
-            self._log_tokens(model, usage, cached, finish)
+            self._log_tokens(model, usage, cached, reasoning, finish)
 
         if self._cost_enabled:
             self._log_cost(usage, cached)
