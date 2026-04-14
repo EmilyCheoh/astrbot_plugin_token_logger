@@ -1,0 +1,77 @@
+from astrbot.api.event import filter, AstrMessageEvent
+from astrbot.api.star import Context, Star, register
+from astrbot.api import AstrBotConfig, logger
+from astrbot.core.provider.entites import LLMResponse
+
+
+@register(
+    "astrbot_plugin_token_logger",
+    "Felis Abyssalis & Abyss AI",
+    "将每次 LLM 调用的 token 用量记录到日志中",
+    "1.0.0",
+    "https://github.com/EmilyCheoh/astrbot_plugin_token_logger",
+)
+class TokenLogger(Star):
+    def __init__(self, context: Context, config: AstrBotConfig):
+        super().__init__(context)
+        self.config = config
+        self._enabled = bool(config.get("enabled", True))
+        self._cost_enabled = bool(config.get("cost_enabled", False))
+        self._input_cost = float(config.get("input_cost_per_million", 2.50))
+        self._cached_cost = float(config.get("cached_input_cost_per_million", 1.25))
+        self._output_cost = float(config.get("output_cost_per_million", 10.00))
+        logger.info(
+            f"[TokenLogger] 初始化完成 (enabled={self._enabled}, "
+            f"cost={self._cost_enabled}, "
+            f"input=${self._input_cost}/M, cached=${self._cached_cost}/M, "
+            f"output=${self._output_cost}/M)"
+        )
+
+    @filter.on_llm_response()
+    async def on_llm_response(self, event: AstrMessageEvent, resp: LLMResponse):
+        if not self._enabled:
+            return
+
+        completion = resp.raw_completion
+        if completion is None or completion.usage is None:
+            logger.info("[TokenLogger] 本次调用未返回 token 用量信息（provider 可能不支持）")
+            return
+
+        usage = completion.usage
+        model = getattr(completion, "model", "unknown")
+        finish = getattr(completion.choices[0], "finish_reason", "unknown") if completion.choices else "unknown"
+
+        # 缓存 token 数
+        details = getattr(usage, "prompt_tokens_details", None)
+        cached = getattr(details, "cached_tokens", 0) or 0 if details else 0
+        uncached = usage.prompt_tokens - cached
+
+        # token 用量日志
+        token_msg = (
+            f"[TokenLogger] model={model} | "
+            f"input={usage.prompt_tokens}"
+        )
+        if cached > 0:
+            token_msg += f" (cached={cached})"
+        token_msg += (
+            f" | output={usage.completion_tokens} | "
+            f"total={usage.total_tokens} | "
+            f"finish={finish}"
+        )
+        logger.info(token_msg)
+
+        # 费用日志（单独一条）
+        if self._cost_enabled:
+            uncached_fee = uncached * self._input_cost / 1_000_000
+            cached_fee = cached * self._cached_cost / 1_000_000
+            output_fee = usage.completion_tokens * self._output_cost / 1_000_000
+            total_fee = uncached_fee + cached_fee + output_fee
+
+            formula = f"{uncached} * ${self._input_cost}/M"
+            if cached > 0:
+                formula += f" + {cached} * ${self._cached_cost}/M"
+            formula += f" + {usage.completion_tokens} * ${self._output_cost}/M"
+
+            logger.info(
+                f"[TokenLogger] cost=${total_fee:.6f} ({formula} = ${total_fee:.6f})"
+            )

@@ -1,0 +1,32 @@
+{
+    "enabled": {
+        "description": "启用 Token 日志记录",
+        "hint": "开启后，每次 LLM 调用结束时将 token 用量（prompt / completion / total）写入日志。关闭后插件静默，不记录任何信息。",
+        "type": "bool",
+        "default": true
+    },
+    "cost_enabled": {
+        "description": "启用费用计算",
+        "hint": "开启后，根据配置的单价计算每次调用的费用并写入日志。需要同时启用 Token 日志记录。",
+        "type": "bool",
+        "default": false
+    },
+    "input_cost_per_million": {
+        "description": "输入单价（每百万 token / 美元）",
+        "hint": "每百万 input token 的费用（美元）。例如 gpt-4o 为 2.50，gpt-4o-mini 为 0.15。",
+        "type": "float",
+        "default": 2.50
+    },
+    "cached_input_cost_per_million": {
+        "description": "缓存输入单价（每百万 token / 美元）",
+        "hint": "每百万 cached input token 的费用（美元）。通常为 input 单价的 50%。例如 gpt-4o 为 1.25，gpt-4o-mini 为 0.075。",
+        "type": "float",
+        "default": 1.25
+    },
+    "output_cost_per_million": {
+        "description": "输出单价（每百万 token / 美元）",
+        "hint": "每百万 output token 的费用（美元）。例如 gpt-4o 为 10.00，gpt-4o-mini 为 0.60。",
+        "type": "float",
+        "default": 10.00
+    }
+}
