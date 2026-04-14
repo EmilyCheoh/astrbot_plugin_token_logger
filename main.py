@@ -12,21 +12,74 @@ from astrbot.core.provider.entites import LLMResponse
     "https://github.com/EmilyCheoh/astrbot_plugin_token_logger",
 )
 class TokenLogger(Star):
+
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
-        self.config = config
+
         self._enabled = bool(config.get("enabled", True))
         self._cost_enabled = bool(config.get("cost_enabled", False))
-        self._input_cost = float(config.get("input_cost_per_million", 2.50))
-        self._cached_cost = float(config.get("cached_input_cost_per_million", 1.25))
-        self._output_cost = float(config.get("output_cost_per_million", 10.00))
         self._cache_aware = bool(config.get("cache_aware", False))
+
+        self._input_cost = float(config.get("input_cost_per_million", 2.50))
+        self._output_cost = float(config.get("output_cost_per_million", 10.00))
+        self._cached_cost = float(config.get("cached_input_cost_per_million", 1.25))
+
         logger.info(
-            f"[TokenLogger] 初始化完成 (enabled={self._enabled}, "
-            f"cost={self._cost_enabled}, cache_aware={self._cache_aware}, "
-            f"input=${self._input_cost}/M, cached=${self._cached_cost}/M, "
-            f"output=${self._output_cost}/M)"
+            f"[TokenLogger] 初始化完成 "
+            f"(enabled={self._enabled}, cost={self._cost_enabled}, "
+            f"cache_aware={self._cache_aware}, "
+            f"input=${self._input_cost}/M, output=${self._output_cost}/M, "
+            f"cached=${self._cached_cost}/M)"
         )
+
+    # ------------------------------------------------------------------
+
+    def _get_cached_tokens(self, usage) -> int:
+        if not self._cache_aware:
+            return 0
+        details = getattr(usage, "prompt_tokens_details", None)
+        if details is None:
+            return 0
+        return getattr(details, "cached_tokens", 0) or 0
+
+    def _get_finish_reason(self, completion) -> str:
+        if not completion.choices:
+            return "unknown"
+        return getattr(completion.choices[0], "finish_reason", "unknown")
+
+    # ------------------------------------------------------------------
+
+    def _log_tokens(self, model: str, usage, cached: int, finish: str):
+        parts = [f"[TokenLogger] model = {model}"]
+
+        if cached > 0:
+            parts.append(f"input = {usage.prompt_tokens} (cached = {cached})")
+        else:
+            parts.append(f"input = {usage.prompt_tokens}")
+
+        parts.append(f"output = {usage.completion_tokens}")
+        parts.append(f"total = {usage.total_tokens}")
+        parts.append(f"finish reason = {finish}")
+
+        logger.info(" | ".join(parts))
+
+    def _log_cost(self, usage, cached: int):
+        uncached = usage.prompt_tokens - cached
+
+        uncached_fee = uncached * self._input_cost / 1_000_000
+        cached_fee = cached * self._cached_cost / 1_000_000
+        output_fee = usage.completion_tokens * self._output_cost / 1_000_000
+        total_fee = uncached_fee + cached_fee + output_fee
+
+        formula_parts = [f"{uncached} * ${self._input_cost}/M"]
+        if cached > 0:
+            formula_parts.append(f"{cached} * ${self._cached_cost}/M")
+        formula_parts.append(f"{usage.completion_tokens} * ${self._output_cost}/M")
+
+        formula = " + ".join(formula_parts)
+        logger.info(f"[TokenLogger] cost = ${total_fee:.6f} ({formula} = ${total_fee:.6f})")
+
+    # ------------------------------------------------------------------
 
     @filter.on_llm_response()
     async def on_llm_response(self, event: AstrMessageEvent, resp: LLMResponse):
@@ -41,42 +94,11 @@ class TokenLogger(Star):
 
         usage = completion.usage
         model = getattr(completion, "model", "unknown")
-        finish = getattr(completion.choices[0], "finish_reason", "unknown") if completion.choices else "unknown"
+        finish = self._get_finish_reason(completion)
+        cached = self._get_cached_tokens(usage)
 
-        # 缓存 token 数
-        details = getattr(usage, "prompt_tokens_details", None)
-        cached = (getattr(details, "cached_tokens", 0) or 0) if details else 0
-        if not self._cache_aware:
-            cached = 0
-        uncached = usage.prompt_tokens - cached
-
-        # token 用量日志
         if self._enabled:
-            token_msg = (
-                f"[TokenLogger] model = {model} | "
-                f"input = {usage.prompt_tokens}"
-            )
-            if cached > 0:
-                token_msg += f" (cached = {cached})"
-            token_msg += (
-                f" | output = {usage.completion_tokens} | "
-                f"total = {usage.total_tokens} | "
-                f"finish reason = {finish}"
-            )
-            logger.info(token_msg)
+            self._log_tokens(model, usage, cached, finish)
 
-        # 费用日志（单独一条）
         if self._cost_enabled:
-            uncached_fee = uncached * self._input_cost / 1_000_000
-            cached_fee = cached * self._cached_cost / 1_000_000
-            output_fee = usage.completion_tokens * self._output_cost / 1_000_000
-            total_fee = uncached_fee + cached_fee + output_fee
-
-            formula = f"{uncached} * ${self._input_cost}/M"
-            if cached > 0:
-                formula += f" + {cached} * ${self._cached_cost}/M"
-            formula += f" + {usage.completion_tokens} * ${self._output_cost}/M"
-
-            logger.info(
-                f"[TokenLogger] cost = ${total_fee:.6f} ({formula} = ${total_fee:.6f})"
-            )
+            self._log_cost(usage, cached)
