@@ -34,5 +34,17 @@
         "hint": "每百万 cached input token 的费用（美元）。",
         "type": "float",
         "default": 2.50
+    },
+    "show_temperature": {
+        "description": "显示 temperature",
+        "hint": "开启后，在 token 日志中显示本次调用的 temperature 值。",
+        "type": "bool",
+        "default": false
+    },
+    "show_top_p": {
+        "description": "显示 top_p",
+        "hint": "开启后，在 token 日志中显示本次调用的 top_p 值。",
+        "type": "bool",
+        "default": false
     }
 }
