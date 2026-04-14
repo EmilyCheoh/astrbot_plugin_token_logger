@@ -58,7 +58,7 @@ class TokenLogger(Star):
 
     # ------------------------------------------------------------------
 
-    def _log_tokens(self, completion, usage, cached: int, reasoning: int, finish: str):
+    def _log_tokens(self, completion, usage, cached: int, reasoning: int, finish: str, has_thinking: bool):
         model = getattr(completion, "model", "unknown")
         parts = [f"[TokenLogger] 🏷️ model = {model}"]
 
@@ -69,6 +69,8 @@ class TokenLogger(Star):
 
         if reasoning > 0:
             parts.append(f"output = {usage.completion_tokens} (reasoning = {reasoning})")
+        elif has_thinking:
+            parts.append(f"output = {usage.completion_tokens} (thinking = yes)")
         else:
             parts.append(f"output = {usage.completion_tokens}")
 
@@ -120,9 +122,10 @@ class TokenLogger(Star):
         finish = self._get_finish_reason(completion)
         cached = self._get_cached_tokens(usage)
         reasoning = self._get_reasoning_tokens(usage)
+        has_thinking = bool(getattr(resp, "reasoning_content", None))
 
         if self._enabled:
-            self._log_tokens(completion, usage, cached, reasoning, finish)
+            self._log_tokens(completion, usage, cached, reasoning, finish, has_thinking)
 
         if self._cost_enabled:
             self._log_cost(usage, cached)
