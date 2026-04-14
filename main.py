@@ -30,12 +30,13 @@ class TokenLogger(Star):
 
     @filter.on_llm_response()
     async def on_llm_response(self, event: AstrMessageEvent, resp: LLMResponse):
-        if not self._enabled:
+        if not self._enabled and not self._cost_enabled:
             return
 
         completion = resp.raw_completion
         if completion is None or completion.usage is None:
-            logger.info("[TokenLogger] 本次调用未返回 token 用量信息（provider 可能不支持）")
+            if self._enabled:
+                logger.info("[TokenLogger] 本次调用未返回 token 用量信息（provider 可能不支持）")
             return
 
         usage = completion.usage
@@ -44,24 +45,25 @@ class TokenLogger(Star):
 
         # 缓存 token 数
         details = getattr(usage, "prompt_tokens_details", None)
-        cached = getattr(details, "cached_tokens", 0) or 0 if details else 0
+        cached = (getattr(details, "cached_tokens", 0) or 0) if details else 0
         if not self._cache_aware:
             cached = 0
         uncached = usage.prompt_tokens - cached
 
         # token 用量日志
-        token_msg = (
-            f"[TokenLogger] model={model} | "
-            f"input={usage.prompt_tokens}"
-        )
-        if cached > 0:
-            token_msg += f" (cached={cached})"
-        token_msg += (
-            f" | output={usage.completion_tokens} | "
-            f"total={usage.total_tokens} | "
-            f"finish={finish}"
-        )
-        logger.info(token_msg)
+        if self._enabled:
+            token_msg = (
+                f"[TokenLogger] model = {model} | "
+                f"input = {usage.prompt_tokens}"
+            )
+            if cached > 0:
+                token_msg += f" (cached = {cached})"
+            token_msg += (
+                f" | output = {usage.completion_tokens} | "
+                f"total = {usage.total_tokens} | "
+                f"finish reason = {finish}"
+            )
+            logger.info(token_msg)
 
         # 费用日志（单独一条）
         if self._cost_enabled:
@@ -76,5 +78,5 @@ class TokenLogger(Star):
             formula += f" + {usage.completion_tokens} * ${self._output_cost}/M"
 
             logger.info(
-                f"[TokenLogger] cost=${total_fee:.6f} ({formula} = ${total_fee:.6f})"
+                f"[TokenLogger] cost = ${total_fee:.6f} ({formula} = ${total_fee:.6f})"
             )
