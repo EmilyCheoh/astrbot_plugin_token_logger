@@ -1,7 +1,7 @@
 {
     "enabled": {
         "description": "启用 Token 日志记录",
-        "hint": "开启后，每次 LLM 调用结束时将 token 用量（prompt / completion / total）写入日志。关闭后插件静默，不记录任何信息。",
+        "hint": "开启后，每次 LLM 调用结束时将 token 用量（prompt / completion / total）写入日志。",
         "type": "bool",
         "default": true
     },
@@ -17,16 +17,22 @@
         "type": "float",
         "default": 2.50
     },
-    "cached_input_cost_per_million": {
-        "description": "缓存输入单价（每百万 token / 美元）",
-        "hint": "每百万 cached input token 的费用（美元）。通常为 input 单价的 50%。例如 gpt-4o 为 1.25，gpt-4o-mini 为 0.075。",
-        "type": "float",
-        "default": 1.25
-    },
     "output_cost_per_million": {
         "description": "输出单价（每百万 token / 美元）",
         "hint": "每百万 output token 的费用（美元）。例如 gpt-4o 为 10.00，gpt-4o-mini 为 0.60。",
         "type": "float",
         "default": 10.00
+    },
+    "cache_aware": {
+        "description": "启用缓存感知计费",
+        "hint": "开启后，区分 cached / uncached input token 分别计费。关闭后，所有 input token 统一按输入单价计费（适用于不支持缓存的二道贩子 API）。",
+        "type": "bool",
+        "default": false
+    },
+    "cached_input_cost_per_million": {
+        "description": "缓存输入单价（每百万 token / 美元）",
+        "hint": "每百万 cached input token 的费用（美元）。通常为 input 单价的 50%。例如 gpt-4o 为 1.25，gpt-4o-mini 为 0.075。需要开启缓存感知计费才会生效。",
+        "type": "float",
+        "default": 1.25
     }
 }

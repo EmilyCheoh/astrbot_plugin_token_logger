@@ -20,9 +20,10 @@ class TokenLogger(Star):
         self._input_cost = float(config.get("input_cost_per_million", 2.50))
         self._cached_cost = float(config.get("cached_input_cost_per_million", 1.25))
         self._output_cost = float(config.get("output_cost_per_million", 10.00))
+        self._cache_aware = bool(config.get("cache_aware", False))
         logger.info(
             f"[TokenLogger] 初始化完成 (enabled={self._enabled}, "
-            f"cost={self._cost_enabled}, "
+            f"cost={self._cost_enabled}, cache_aware={self._cache_aware}, "
             f"input=${self._input_cost}/M, cached=${self._cached_cost}/M, "
             f"output=${self._output_cost}/M)"
         )
@@ -44,6 +45,8 @@ class TokenLogger(Star):
         # 缓存 token 数
         details = getattr(usage, "prompt_tokens_details", None)
         cached = getattr(details, "cached_tokens", 0) or 0 if details else 0
+        if not self._cache_aware:
+            cached = 0
         uncached = usage.prompt_tokens - cached
 
         # token 用量日志
