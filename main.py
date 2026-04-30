@@ -28,7 +28,7 @@ class TokenLogger(Star):
         self._show_top_p = bool(config.get("show_top_p", False))
 
         logger.info(
-            f"[TokenLogger] 💜 初始化完成 "
+            f"[Token 用量记录] 💜 初始化完成 "
             f"(enabled={self._enabled}, cost={self._cost_enabled}, "
             f"cache_aware={self._cache_aware}, "
             f"input=${self._input_cost}/M, output=${self._output_cost}/M, "
@@ -60,7 +60,7 @@ class TokenLogger(Star):
 
     def _log_tokens(self, completion, usage, cached: int, reasoning: int, finish: str, has_thinking: bool):
         model = getattr(completion, "model", "unknown")
-        parts = [f"[TokenLogger] 🏷️ model = {model}"]
+        parts = [f"[Token 用量记录] 🏷️ model = {model}"]
 
         if cached > 0:
             parts.append(f"input = {usage.prompt_tokens} (cached = {cached})")
@@ -103,7 +103,7 @@ class TokenLogger(Star):
         formula_parts.append(f"{usage.completion_tokens} * ${self._output_cost}/M")
 
         formula = " + ".join(formula_parts)
-        logger.info(f"[TokenLogger] 💰 cost = ${total_fee:.6f} ({formula} = ${total_fee:.6f})")
+        logger.info(f"[Token 用量记录] 💰 cost = ${total_fee:.6f} ({formula} = ${total_fee:.6f})")
 
     # ------------------------------------------------------------------
 
@@ -115,7 +115,7 @@ class TokenLogger(Star):
         completion = resp.raw_completion
         if completion is None or completion.usage is None:
             if self._enabled:
-                logger.info("[TokenLogger] ⚠️ 本次调用未返回 token 用量信息")
+                logger.info("[Token 用量记录] ⚠️ 本次调用未返回 token 用量信息")
             return
 
         usage = completion.usage

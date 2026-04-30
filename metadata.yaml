@@ -1,5 +1,5 @@
 name: astrbot_plugin_token_logger
-display_name: "Token Logger"
+display_name: "Token及费用记录"
 desc: 将每次 LLM 调用的 token 用量以及费用记录到日志中。
 version: v1.0.0
 author: Felis Abyssalis
