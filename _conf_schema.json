@@ -30,7 +30,7 @@
         "default": false
     },
     "cached_input_cost_per_million": {
-        "description": "缓存输入单价",
+        "description": "缓存读取单价",
         "hint": "每百万 cached input token 的费用（美元）。",
         "type": "float",
         "default": 2.50
