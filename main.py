@@ -40,41 +40,15 @@ class TokenLogger(Star):
     # ------------------------------------------------------------------
 
     def _extract_tokens(self, resp: LLMResponse):
-        """Return (input_tokens, output_tokens, cached_tokens, total_tokens, model, finish_reason)
-        from whichever source is available on the LLMResponse.
+        """Return token usage data from whichever source is available.
 
         Priority:
-          1. resp.usage (AstrBot's normalized TokenUsage — always set by Anthropic provider)
-          2. resp.raw_completion.usage (OpenAI-style raw completion object)
+          1. resp.raw_completion.usage (OpenAI-style — model name lives here)
+          2. resp.usage (AstrBot normalized TokenUsage — Anthropic fallback)
           3. None — no usage data available
         """
 
-        # --- Path 1: AstrBot normalized TokenUsage (Anthropic, and possibly future providers) ---
-        usage = getattr(resp, "usage", None)
-        if usage is not None and hasattr(usage, "output"):
-            input_other = getattr(usage, "input_other", 0) or 0
-            input_cached = getattr(usage, "input_cached", 0) or 0
-            output = getattr(usage, "output", 0) or 0
-            input_total = input_other + input_cached
-            total = input_total + output
-
-            # Try to get model from the response id or fallback
-            model = getattr(resp, "model", None) or "unknown"
-
-            return {
-                "input": input_total,
-                "input_normal": input_other,
-                "input_cache_read": input_cached,
-                "input_cache_write": 0,  # AstrBot drops cache_creation_input_tokens
-                "output": output,
-                "cached": input_cached if self._cache_aware else 0,
-                "total": total,
-                "model": model,
-                "finish": "unknown",
-                "source": "normalized",
-            }
-
-        # --- Path 2: OpenAI-style raw_completion ---
+        # --- Path 1: OpenAI-style raw_completion (model lives on completion obj) ---
         completion = getattr(resp, "raw_completion", None)
         if completion is not None and getattr(completion, "usage", None) is not None:
             raw_usage = completion.usage
@@ -116,6 +90,31 @@ class TokenLogger(Star):
             if reasoning > 0:
                 result["reasoning"] = reasoning
             return result
+
+        # --- Path 2: AstrBot normalized TokenUsage (Anthropic fallback) ---
+        usage = getattr(resp, "usage", None)
+        if usage is not None and hasattr(usage, "output"):
+            input_other = getattr(usage, "input_other", 0) or 0
+            input_cached = getattr(usage, "input_cached", 0) or 0
+            output = getattr(usage, "output", 0) or 0
+            input_total = input_other + input_cached
+            total = input_total + output
+
+            # Try to get model from the response id or fallback
+            model = getattr(resp, "model", None) or "unknown"
+
+            return {
+                "input": input_total,
+                "input_normal": input_other,
+                "input_cache_read": input_cached,
+                "input_cache_write": 0,  # AstrBot drops cache_creation_input_tokens
+                "output": output,
+                "cached": input_cached if self._cache_aware else 0,
+                "total": total,
+                "model": model,
+                "finish": "unknown",
+                "source": "normalized",
+            }
 
         # --- No usage data ---
         return None
@@ -175,7 +174,7 @@ class TokenLogger(Star):
         formula_parts.append(f"{data['output']} * ${self._output_cost}/M")
 
         formula = " + ".join(formula_parts)
-        logger.info(f"[Token 用量记录] 💰 cost = ${total_fee:.6f} ({formula})")
+        logger.info(f"[Token 用量记录] 💰 cost = ${total_fee:.6f} ({formula} = ${total_fee:.6f})")
 
     # ------------------------------------------------------------------
     # Hook
